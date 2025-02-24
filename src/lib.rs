@@ -1,6 +1,6 @@
-mod maps;
-mod error;
-mod result;
+pub mod maps;
+pub mod error;
+pub mod result;
 
 #[cfg(test)]
 mod tests;

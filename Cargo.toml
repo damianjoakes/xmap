@@ -1,5 +1,11 @@
 [package]
-name = "xmap"
+name = "x-map"
+description = "Extended map/vector structures for Rust"
+readme = "README.md"
+license = "MIT"
+homepage = "https://github.com/damianjoakes/xmap"
+repository = "https://github.com/damianjoakes/xmap.git"
+authors = ["Damian Oakes"]
 version = "0.1.0"
 edition = "2024"
 

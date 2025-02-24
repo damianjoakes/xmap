@@ -1,5 +1,8 @@
 # xmap
 
+**NOTE: This crate is a work in progress. As time goes on, more features may 
+be added or removed.**
+
 # About
 ## What is xmap?
 xmap is a crate containing various new vector/map implementations, including multi-indexed maps.

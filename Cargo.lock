@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "xmap"
+name = "x-map"
 version = "0.1.0"
