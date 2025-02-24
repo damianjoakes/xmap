@@ -20,3 +20,13 @@ pub fn test_integration_2() {
     dbg!(map.get("foo").unwrap());
     dbg!(map.get_no_peq("foo").unwrap());
 }
+
+#[test]
+pub fn test_integration_3() {
+    let mut map = CIndexMap::new();
+    map.insert("foo", "bar").unwrap();
+    dbg!(map.contains_key("foo")); // true
+    dbg!(map.contains_key("bar")); // false
+    dbg!(map.contains_value("bar")); // true
+    dbg!(map.contains_value("foo")); // false
+}

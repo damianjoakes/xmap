@@ -1,3 +1,6 @@
-use crate::error::MapError;
+//! Contains the type alias for the internal `Result` enum for `x-map`.
 
-pub type Result<T> = std::result::Result<T, MapError>;
+use crate::error::CIndexMapError;
+
+/// Type alias for `std::result::Result<T, CIndexMapError>`.
+pub type Result<T> = std::result::Result<T, CIndexMapError>;

@@ -17,7 +17,5 @@ order and by key.
 ### Purpose
 A key/value map designed to prioritize insertion order (chronological-index-map).
 
-### Current functions
-- `insert` - inserts a new key/value pair into the map.
-- `remove` - removes a key/value pair from the map by insertion order.
-- `index` - retrieves a key/value pair from the map by insertion order.
+All keys in this map are accessible directly by their insertion order. All values in this map are 
+accessible directly by their associated key.

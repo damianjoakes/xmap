@@ -1,30 +1,33 @@
-use crate::error::MapError;
+//! The primary maps module for `x-map`. This module contains all code relating to the various
+//! maps that are packaged as part of `x-map`.
+//!
+//! Many map types in this module utilize raw pointers. This unsafe code is managed internally by each
+//! map contained within, and this unsafe code should be abstracted away from library users.
+//!
+//! To support multiple environments, many maps will also contain functions for low-level operations,
+//! so that in environments such as `#![no_std]` environments, these maps are still usable.
+//!
+//! As a rule of thumb, all functions in which it is expected to retrieve a value will retrieve a
+//! reference to that value, not a copy of it.
+
+use crate::error::{CIndexMapError, MapErrorKind};
 use crate::util::mem_cmp;
-use std::alloc::Layout;
-use std::fmt::Debug;
-use std::ptr;
-
-#[derive(Debug)]
-pub struct KeyValue<'a, K, V> {
-    key: &'a K,
-    value: &'a V,
-}
-
-impl<'a, K, V> KeyValue<'a, K, V> {
-    pub fn key(&self) -> &'a K {
-        &self.key
-    }
-
-    pub fn value(&self) -> &'a V {
-        &self.value
-    }
-}
+use core::alloc::Layout;
+use core::fmt::Debug;
+use core::ptr;
 
 #[derive(Debug)]
 pub struct CIndexMap<K, V> {
+    /// The initial layout used to initialize this map's keys store.
     key_layout: Layout,
+
+    /// The initial layout used to initialize this map's values store.
     val_layout: Layout,
+
+    /// A pointer to a space in memory in which keys will be stored at.
     keys: *mut K,
+
+    /// A pointer to a space in memory in which values will be stored at.
     values: *mut V,
 
     /// The total allocated memory for this map.
@@ -104,9 +107,16 @@ impl<K, V> CIndexMap<K, V> {
                 ) as *mut V
             };
 
-            self.keys = new_key_ptr;
-            self.values = new_val_ptr;
-            self.cap = new_cap;
+            if (new_val_ptr == ptr::null_mut()) || (new_key_ptr == ptr::null_mut()) {
+                return Err(CIndexMapError::new(
+                    MapErrorKind::AllocationError,
+                    "Error when attempting to allocate map memory."
+                ));
+            } else {
+                self.keys = new_key_ptr;
+                self.values = new_val_ptr;
+                self.cap = new_cap;
+            }
         }
 
         self.pos += 1;
@@ -126,7 +136,12 @@ impl<K, V> CIndexMap<K, V> {
     /// Removes an element at the specified index.
     pub fn remove(&mut self, index: usize) -> crate::result::Result<()> {
         if index > (self.pos as usize) {
-            Err(MapError {})
+            Err(
+                CIndexMapError::new(
+                    MapErrorKind::AccessError,
+                    "Attempted to access a map index that surpasses the bounds of the current map."
+                )
+            )
         } else {
             // SAFETY:
             // We've determined that the index requested fits within the range of valid data.
@@ -156,15 +171,20 @@ impl<K, V> CIndexMap<K, V> {
     /// Returns the key to the entry at the specified index.
     ///
     /// Use `CIndexMap::get` to get the value of the entry based off of the key.
-    pub fn index(&self, index: usize) -> Option<K> {
+    pub fn index(&self, index: usize) -> crate::result::Result<&K> {
         if index > (self.pos as usize) {
-            None
+            Err(
+                CIndexMapError::new(
+                    MapErrorKind::AccessError,
+                    "Attempted to access a map index that surpasses the bounds of the current map."
+                )
+            )
         } else {
             // SAFETY:
             // All elements `0..self.pos` should be already be initialized.
             unsafe {
-                Some(
-                    self.keys.offset(index as isize).read()
+                Ok(
+                    &*self.keys.offset(index as isize)
                 )
             }
         }
@@ -209,10 +229,17 @@ impl<K, V> CIndexMap<K, V> {
     /// dbg!(map.get_no_peq(string_one.to_string()));
     /// ```
     pub fn get_no_peq(&self, key: K) -> Option<&V> {
-        unsafe {
-            let mut i = 0;
-            let key_ptr = ptr::from_ref(&key);
+        let key_ptr = ptr::from_ref(&key);
+        let mut i = 0;
 
+        // SAFETY:
+        // We only iterate the memory space between 0 and self.pos, which is always initialized.
+        //
+        // The type system guarantees that the supplied `key`, the position of the pointer, and the
+        // `size_of::<K>` are all already valid. This means `mem_cmp` can safely be called,
+        // as the data in `self.keys[0..self.pos]` is already initialized, and is valid for both
+        // the size of `key`, and the size of type `K`.
+        unsafe {
             while i <= self.pos {
                 let cmp = mem_cmp(key_ptr as *const u8, self.keys.offset(i) as *const u8, size_of::<K>());
                 match cmp {
@@ -246,12 +273,50 @@ impl<K: PartialEq, V> CIndexMap<K, V> {
         // Thus, reading from memory for each allocation of size_of::<K> is correct.
         unsafe {
             for i in 0..(self.pos + 1) {
-                if ptr::read(self.keys.add(i as usize)) == key {
+                if *self.keys.add(i as usize) == key {
                     return Some(&*self.values.add(i as usize));
                 }
             }
         };
 
         None
+    }
+
+    /// Checks if the map contains the provided key.
+    ///
+    /// - If it does, this function returns `true`,
+    /// - If it does not, this function returns `false`.
+    pub fn contains_key(&self, key: K) -> bool {
+        // SAFETY:
+        // We only iterate over the data between 0 and self.pos, which is always initialized.
+        unsafe {
+            for i in 0..(self.pos + 1) {
+                if *self.keys.add(i as usize) == key {
+                    return true;
+                }
+            }
+        };
+
+        false
+    }
+}
+
+impl<K, V: PartialEq> CIndexMap<K, V> {
+    /// Checks if the map contains the provided value.
+    ///
+    /// - If it does, this function returns `true`,
+    /// - If it does not, this function returns `false`.
+    pub fn contains_value(&self, value: V) -> bool {
+        // SAFETY:
+        // We only iterate over the data between 0 and self.pos, which is always initialized.
+        unsafe {
+            for i in 0..(self.pos + 1) {
+                if *self.values.add(i as usize) == value {
+                    return true;
+                }
+            }
+        };
+
+        false
     }
 }
