@@ -228,7 +228,7 @@ impl<K, V> CIndexMap<K, V> {
     }
 }
 
-impl<K: PartialEq + Debug, V> CIndexMap<K, V> {
+impl<K: PartialEq, V> CIndexMap<K, V> {
     /// Gets the value associated with the specified key.
     ///
     /// Multiple implementations exist for `get`:
