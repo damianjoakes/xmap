@@ -4,3 +4,4 @@ mod result;
 
 #[cfg(test)]
 mod tests;
+mod util;
