@@ -1,26 +1,50 @@
+//! Module containing code for various errors that may need to be handled.
+
 use std::error::Error;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Debug, Display, Formatter, Write};
 
 pub enum MapErrorKind {
-    KeyAlreadyExists
+    AllocationError,
+    AccessError
 }
 
-pub struct MapError {
+/// A struct handling error reporting for the `CIndexMap` type.
+///
+/// This error contains the kind of error that the map ran into, and the message to display
+/// when displaying the error.
+pub struct CIndexMapError {
+    /// A static string containing the message associated with the error.
+    message: &'static str,
 
+    /// A `MapErrorKind`, containing the type of error that the map encountered.
+    kind: MapErrorKind
 }
 
-impl Debug for MapError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+impl CIndexMapError {
+    /// Constructs a new CIndexMapError.
+    ///
+    /// This is only used within `x-map`, and cannot be called externally.
+    pub(in crate) fn new(
+        kind: MapErrorKind,
+        message: &'static str
+    ) -> CIndexMapError {
+        CIndexMapError {
+            kind,
+            message
+        }
     }
 }
 
-impl Display for MapError {
+impl Debug for CIndexMapError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        f.write_str(self.message)
     }
 }
 
-impl Error for MapError {
-
+impl Display for CIndexMapError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.message)
+    }
 }
+
+impl Error for CIndexMapError {}

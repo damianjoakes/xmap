@@ -12,6 +12,6 @@ fn test_insert() {
     dbg!(c_index.index(0));
     dbg!(c_index.index(1));
     c_index.remove(1).unwrap();
-    dbg!(c_index.index(0).unwrap().key());
+    dbg!(c_index.index(0).unwrap());
     dbg!(c_index.index(1));
 }
