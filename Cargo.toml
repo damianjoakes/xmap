@@ -6,7 +6,7 @@ license = "MIT"
 homepage = "https://github.com/damianjoakes/xmap"
 repository = "https://github.com/damianjoakes/xmap.git"
 authors = ["Damian Oakes"]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 
 exclude = [
