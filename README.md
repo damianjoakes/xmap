@@ -13,3 +13,8 @@ order and by key.
 ## `CIndexMap<K, V>`
 ### Purpose
 A key/value map designed to prioritize insertion order (chronological-index-map).
+
+### Current functions
+- `insert` - inserts a new key/value pair into the map.
+- `remove` - removes a key/value pair from the map by insertion order.
+- `index` - retrieves a key/value pair from the map by insertion order.
