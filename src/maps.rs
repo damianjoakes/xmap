@@ -1,6 +1,8 @@
-use std::alloc::Layout;
-use std::ptr;
 use crate::error::MapError;
+use crate::util::mem_cmp;
+use std::alloc::Layout;
+use std::fmt::Debug;
+use std::ptr;
 
 #[derive(Debug)]
 pub struct KeyValue<'a, K, V> {
@@ -90,7 +92,7 @@ impl<K, V> CIndexMap<K, V> {
                 std::alloc::realloc(
                     self.keys as *mut u8,
                     self.key_layout,
-                    size_of::<K>() * (new_cap as usize)
+                    size_of::<K>() * (new_cap as usize),
                 ) as *mut K
             };
 
@@ -98,7 +100,7 @@ impl<K, V> CIndexMap<K, V> {
                 std::alloc::realloc(
                     self.values as *mut u8,
                     self.val_layout,
-                    size_of::<V>() * (new_cap as usize)
+                    size_of::<V>() * (new_cap as usize),
                 ) as *mut V
             };
 
@@ -134,13 +136,13 @@ impl<K, V> CIndexMap<K, V> {
                 ptr::copy(
                     self.keys.offset((index as isize) + 1),
                     self.keys.offset(index as isize),
-                    (self.pos as usize - index)
+                    (self.pos as usize - index),
                 );
 
                 ptr::copy(
                     self.values.offset((index as isize) + 1),
                     self.values.offset(index as isize),
-                    self.pos as usize - index
+                    self.pos as usize - index,
                 );
             }
 
@@ -151,8 +153,10 @@ impl<K, V> CIndexMap<K, V> {
         }
     }
 
-    /// Returns the key/object pair based on insertion order.
-    pub fn index(&self, index: usize) -> Option<KeyValue<K, V>> {
+    /// Returns the key to the entry at the specified index.
+    ///
+    /// Use `CIndexMap::get` to get the value of the entry based off of the key.
+    pub fn index(&self, index: usize) -> Option<K> {
         if index > (self.pos as usize) {
             None
         } else {
@@ -160,12 +164,94 @@ impl<K, V> CIndexMap<K, V> {
             // All elements `0..self.pos` should be already be initialized.
             unsafe {
                 Some(
-                    KeyValue {
-                        key: &*self.keys.offset(index as isize),
-                        value: &*self.values.offset(index as isize)
-                    }
+                    self.keys.offset(index as isize).read()
                 )
             }
         }
+    }
+
+    /// Gets the value associated with the specified key.
+    ///
+    /// This function is preferred for when the underlying Key/Value types for this map cannot,
+    /// for some reason, implement `PartialEq`.
+    ///
+    /// This performs a raw memory comparison between the supplied value and the keys in the
+    /// current map. This comparison doesn't work on a lot of dynamically sized types, like `String`
+    /// and `Vec`.
+    /// # Correct usage
+    /// ```
+    /// use x_map::maps::CIndexMap;
+    /// let mut map = CIndexMap::new();
+    /// map.insert("foo", "bar").unwrap();
+    ///
+    /// // Prints `map.get("foo").unwrap() = "bar"`
+    /// dbg!(map.get("foo").unwrap());
+    ///
+    /// // Prints `map.get_no_peq("foo").unwrap() = "bar"`
+    /// dbg!(map.get_no_peq("foo").unwrap());
+    /// ```
+    ///
+    ///
+    /// # Incorrect usage
+    /// ```
+    /// use x_map::maps::CIndexMap;
+    /// let string_one = String::from("foo");
+    /// let string_two = String::from("bar");
+    ///
+    /// let mut map = CIndexMap::new();
+    /// map.insert(string_one.to_string(), string_two.to_string()).unwrap();
+    ///
+    ///
+    /// // Prints `map.get(string_one.to_string()) = Some("bar")`
+    /// dbg!(map.get(string_one.to_string()));
+    ///
+    /// // Prints `map.get_no_peq(string_one.to_string()) = None`
+    /// dbg!(map.get_no_peq(string_one.to_string()));
+    /// ```
+    pub fn get_no_peq(&self, key: K) -> Option<&V> {
+        unsafe {
+            let mut i = 0;
+            let key_ptr = ptr::from_ref(&key);
+
+            while i <= self.pos {
+                let cmp = mem_cmp(key_ptr as *const u8, self.keys.offset(i) as *const u8, size_of::<K>());
+                match cmp {
+                    None => { return Some(&*self.values.offset(i)); }
+                    Some(_) => {}
+                }
+
+                i += 1;
+            }
+        }
+
+        None
+    }
+}
+
+impl<K: PartialEq + Debug, V> CIndexMap<K, V> {
+    /// Gets the value associated with the specified key.
+    ///
+    /// Multiple implementations exist for `get`:
+    /// - When `K` does not implement `PartialEq`, `get` will perform bytewise comparison between
+    ///   the input and the map keys. This is a fallback implementation, and will not always produce
+    ///   expected results. This implementation will have unexpected results on dynamically sized
+    ///   types, such as `String` and `Vec`.
+    ///
+    /// - When `K` implements `PartialEq`, `get` will call `PartialEq::partial_eq()` for comparison
+    ///   between the input and the map keys. This is the preferred implementation, and will produce
+    ///   the expected results.
+    pub fn get(&self, key: K) -> Option<&V> {
+        // SAFETY:
+        // We know that all elements from (self.keys + 0) to (self.keys + self.pos) are initialized.
+        // Thus, reading from memory for each allocation of size_of::<K> is correct.
+        unsafe {
+            for i in 0..(self.pos + 1) {
+                if ptr::read(self.keys.add(i as usize)) == key {
+                    return Some(&*self.values.add(i as usize));
+                }
+            }
+        };
+
+        None
     }
 }

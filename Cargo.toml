@@ -10,7 +10,8 @@ version = "0.1.0"
 edition = "2024"
 
 exclude = [
-    "src/tests.rs"
+    "src/tests.rs",
+    "tests"
 ]
 
 [dependencies]
